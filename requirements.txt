@@ -1,0 +1,4 @@
+streamlit 
+pandas
+qdrant_client
+sentence_transformers
