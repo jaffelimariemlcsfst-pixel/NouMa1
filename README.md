@@ -48,6 +48,8 @@ API_KEY="paste you api_key here"
 3.install the requirements 
     just type in your terminal :
     pip install -r requirements.txt
+    replace this path :image_path = r"c:\Users\user\Pictures\Screenshots\Capture d'écran 2026-01-23 142433.png"
+    with the path where you save the logo image that is in this repostory
 
     
 3.Run the code
