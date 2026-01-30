@@ -345,19 +345,17 @@ if search_vector:
                 )
             )
         
-        # Execute search - Using the REST API directly to bypass FastEmbed
+        # Execute search - Using the underlying gRPC/REST client
         from qdrant_client.http.models import SearchRequest
         
-        # Use the http client directly
-        results = client.http.points_api.search_points(
+        # Access the underlying client to bypass FastEmbed
+        results = client._client.search(
             collection_name=collection_name,
-            search_request=SearchRequest(
-                vector=search_vector,
-                limit=100,
-                filter=models.Filter(must=filter_conditions),
-                with_payload=True
-            )
-        ).result
+            query_vector=search_vector,
+            limit=100,
+            query_filter=models.Filter(must=filter_conditions),
+            with_payload=True
+        )
         
         # --- Display Results ---
         if len(results) == 0:
