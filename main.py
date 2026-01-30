@@ -8,12 +8,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import json
-import os
-
-URL = os.environ["QDRANT_URL"]
-API_KEY = os.environ["QDRANT_API_KEY"]
-
-
+from config import URL, API_KEY
 
 
 # --- 1. CONFIGURATION ---
@@ -349,13 +344,16 @@ if search_vector:
                 )
             )
         
-        # Execute search
-        results = client.search(
+        # Execute search - FIXED: Using search_points instead of search
+        search_result = client.search_points(
             collection_name=collection_name,
             query_vector=search_vector, 
             limit=100,
             query_filter=models.Filter(must=filter_conditions)
         )
+        
+        # Extract the points from the result
+        results = search_result.points if hasattr(search_result, 'points') else search_result
         
         # --- Display Results ---
         if len(results) == 0:
@@ -546,6 +544,4 @@ st.markdown("""
             🚀 Powered by Advanced AI · 🇹🇳 Made for Tunisia · 💰 Saving You Money
         </p>
     </div>
-
-""", unsafe_allow_html=True) 
-
+""", unsafe_allow_html=True)
