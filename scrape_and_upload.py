@@ -247,7 +247,7 @@ class TunisianetScraper:
         logger.info(f"📤 Uploaded {total} products to Qdrant")
         return total
 
-    def run_multi_site(self, targets, pages_per_site=50):
+    def run_multi_site(self, targets, pages_per_site=25):
         all_sites_products = []
         
         for target in targets:
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     ]
     
     scraper = TunisianetScraper()
-    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=50)
+    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=25)
     
     print(f"""
     {'='*50}
