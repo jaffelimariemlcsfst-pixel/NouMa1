@@ -352,7 +352,7 @@ if search_vector:
         scroll_result = client.scroll(
             collection_name=collection_name,
             scroll_filter=models.Filter(must=filter_conditions),
-            limit=100,
+            limit=500,  # Get more to ensure we have enough after filtering
             with_payload=True,
             with_vectors=True
         )
@@ -363,21 +363,46 @@ if search_vector:
         results = []
         search_vec = np.array(search_vector)
         
+        # Check if this is a text query (not image search)
+        query_text = query.lower() if query else ""
+        
         for point in scroll_result[0]:  # scroll returns (points, next_offset)
             # Calculate cosine similarity
             point_vec = np.array(point.vector)
             similarity = np.dot(search_vec, point_vec) / (np.linalg.norm(search_vec) * np.linalg.norm(point_vec))
             
+            # Boost score for exact/partial text matches
+            boost = 0
+            if query_text:
+                product_name = point.payload.get('name', '').lower()
+                product_brand = point.payload.get('brand', '').lower()
+                
+                # Exact name match - huge boost
+                if query_text in product_name:
+                    boost += 0.3
+                
+                # Brand match - medium boost
+                if query_text in product_brand:
+                    boost += 0.2
+                
+                # Word-by-word match
+                query_words = query_text.split()
+                name_words = product_name.split()
+                matching_words = sum(1 for word in query_words if word in name_words)
+                boost += (matching_words / len(query_words)) * 0.15 if query_words else 0
+            
+            final_score = similarity + boost
+            
             # Create a result object similar to search results
             class ScoredPoint:
                 def __init__(self, id, score, payload):
                     self.id = id
-                    self.score = similarity
+                    self.score = final_score
                     self.payload = payload
             
-            results.append(ScoredPoint(point.id, similarity, point.payload))
+            results.append(ScoredPoint(point.id, final_score, point.payload))
         
-        # Sort by similarity score (highest first)
+        # Sort by combined score (highest first)
         results.sort(key=lambda x: x.score, reverse=True)
         results = results[:100]  # Keep top 100
         
