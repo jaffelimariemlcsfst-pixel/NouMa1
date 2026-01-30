@@ -405,6 +405,30 @@ if search_vector:
         # Sort by combined score (highest first)
         results.sort(key=lambda x: x.score, reverse=True)
         results = results[:100]  # Keep top 100
+        TOP_K = 7  # or 5
+
+        def get_price(p):
+            try:
+                return float(p.payload.get("price", budget))
+            except:
+                return budget
+        # --- Step 1: keep similarity order, but adjust first TOP_K by price closeness
+        top_similar = results[:TOP_K]
+
+        top_similar.sort(
+        key=lambda x: abs(get_price(x) - budget)
+        )
+
+        # --- Step 2: remaining products (still under budget)
+        remaining = results[TOP_K:]
+
+        remaining.sort(
+            key=lambda x: get_price(x)
+        )
+
+        # --- Final ordered list
+        results = top_similar + remaining
+
         
         # --- Display Results ---
         if len(results) == 0:
