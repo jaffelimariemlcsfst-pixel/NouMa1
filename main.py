@@ -8,7 +8,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import json
-from config import URL, API_KEY
+
 
 
 # --- 1. CONFIGURATION ---
@@ -541,4 +541,5 @@ st.markdown("""
             🚀 Powered by Advanced AI · 🇹🇳 Made for Tunisia · 💰 Saving You Money
         </p>
     </div>
+
 """, unsafe_allow_html=True) 
