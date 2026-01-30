@@ -18,6 +18,23 @@ st.set_page_config(
     page_icon="📱",
     initial_sidebar_state="collapsed"
 )
+st.markdown("""
+    <style>
+    /* Add a professional card look to each product container */
+    [data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {
+        background-color: #ffffff;
+        border: 1px solid #f0f2f6;
+        padding: 15px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    [data-testid="stVerticalBlock"] > div:has(div.stMarkdown):hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 if 'compare_list' not in st.session_state:
     st.session_state.compare_list = {}
@@ -164,7 +181,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 7. SEARCH UI ---
-st.markdown("<h2 style='color: #E91E63; margin-top: 2rem;'>🔎 Find Your Perfect Phone</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='color: #E91E63; margin-top: 2rem;'>🔎 Find Your Perfect Product</h2>", unsafe_allow_html=True)
 
 # First row: Search and Budget
 col1, col2, col3 = st.columns([3, 2, 2])
@@ -186,7 +203,7 @@ with col2:
 with col3:
     category_filter = st.selectbox(
         "Category", 
-        ["Tous", "Smartphone", "Ordinateur", "Accessoires"],
+        ["Tous", "Smartphone", "Ordinateur", "Accessoires","Réfrigérateur", "Casque & Écouteurs","Électroménager"],
         help="Filter by product category"
     )
 
@@ -365,7 +382,11 @@ if search_vector:
                             # 1. Product Image
                             img_url = str(p.get('image', ''))
                             if img_url and img_url.lower() != 'nan' and img_url.startswith('http'):
-                                st.image(img_url, use_container_width=True)
+                                st.markdown(f"""
+                                    <div style="display: flex; justify-content: center; align-items: center; height: 200px; margin-bottom: 10px;">
+                                        <img src="{img_url}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                                     </div>
+                                """, unsafe_allow_html=True)
                             else:
                                 st.markdown("""
                                     <div style='background: linear-gradient(135deg, #E91E63 0%, #40E0D0 100%); 
@@ -423,11 +444,17 @@ if search_vector:
                             # 6. Product Details
                             detail_col1, detail_col2 = st.columns(2)
                             with detail_col1:
-                                st.markdown(f"<span style='background: #F5F7FA; padding: 0.3rem 0.8rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600;'>📦 {p.get('brand', 'Brand')}</span>", unsafe_allow_html=True)
+                                st.markdown(f"""
+                                    <div style='background: #1A202C; color: white; padding: 0.4rem; border-radius: 6px; 
+                                    font-size: 0.8rem; text-align: center; font-weight: 600; margin-bottom: 5px;'>
+                                        🏢 {p.get('brand', 'Brand')}
+                                     </div>""", unsafe_allow_html=True)
                             with detail_col2:
-                                st.markdown(f"<span style='background: #F5F7FA; padding: 0.3rem 0.8rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600;'>🎨 {p.get('color', 'Color')}</span>", unsafe_allow_html=True)
-                            
-                            st.markdown("<br>", unsafe_allow_html=True)
+                                st.markdown(f"""
+                                    <div style='background: #E91E63; color: white; padding: 0.4rem; border-radius: 6px; 
+                                    font-size: 0.8rem; text-align: center; font-weight: 600; margin-bottom: 5px;'>
+                                        🎨 {p.get('color', 'Color')}
+                                    </div>""", unsafe_allow_html=True)
                             
                             # 7. Action Buttons
                             compare_label = "✅ Selected for Comparison" if p_id in st.session_state.compare_list else "⚖️ Add to Compare"
