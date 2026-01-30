@@ -8,6 +8,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import json
+import base64
+from PIL import Image
+import io
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 URL = os.environ["QDRANT_URL"]
 API_KEY = os.environ["QDRANT_API_KEY"]
@@ -201,10 +205,6 @@ def toggle_favorite(user_id: int, search_id: int) -> bool:
         return False
     except:
         return False
-
-
-
-
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -513,6 +513,7 @@ def load_resources():
     client = QdrantClient(url=URL, api_key=API_KEY, timeout=60)
     model = SentenceTransformer('clip-ViT-B-32')
     return client, model
+
 # --- 4.5 AUTHENTICATION ---
 render_auth_sidebar()
 
@@ -737,6 +738,21 @@ if search_vector:
         # Check if this is a text query (not image search)
         query_text = query.lower() if query else ""
         
+        # STRICT CATEGORY MATCHING HELPER
+        def strictly_matches_category(payload, target_category):
+            """Check if product category EXACTLY matches target category"""
+            if target_category == "Tous":
+                return True
+            
+            pcat = payload.get('category', '')
+            
+            # Handle list/tuple categories
+            if isinstance(pcat, (list, tuple)):
+                return any(str(target_category).strip().lower() == str(x).strip().lower() for x in pcat if x is not None)
+            
+            # Handle string categories (exact match)
+            return str(target_category).strip().lower() == str(pcat).strip().lower()
+        
         for point in scroll_result[0]:  # scroll returns (points, next_offset)
             # Calculate cosine similarity
             point_vec = np.array(point.vector)
@@ -764,30 +780,45 @@ if search_vector:
             
             final_score = similarity + boost
             
+            # Mark if strictly matches category
+            strict_match = strictly_matches_category(point.payload, category_filter)
+            
             # Create a result object similar to search results
             class ScoredPoint:
-                def __init__(self, id, score, payload):
+                def __init__(self, id, score, payload, strict_match):
                     self.id = id
                     self.score = final_score
                     self.payload = payload
+                    self.strict_match = strict_match
             
-            results.append(ScoredPoint(point.id, final_score, point.payload))
+            results.append(ScoredPoint(point.id, final_score, point.payload, strict_match))
         
         # Sort by combined score (highest first)
         results.sort(key=lambda x: x.score, reverse=True)
         results = results[:100]  # Keep top 100
-        TOP_K = 7  # or 5
+        
+        # STRICT CATEGORY FILTERING FOR FIRST 10 PRODUCTS
+        if category_filter != "Tous":
+            # Separate strict matches and non-strict matches
+            strict_matches = [r for r in results if r.strict_match]
+            non_strict_matches = [r for r in results if not r.strict_match]
+            
+            # Ensure first 10 are ALL strict category matches
+            results = strict_matches + non_strict_matches
+        
+        TOP_K = 7
 
         def get_price(p):
             try:
                 return float(p.payload.get("price", budget))
             except:
                 return budget
+        
         # --- Step 1: keep similarity order, but adjust first TOP_K by price closeness
         top_similar = results[:TOP_K]
 
         top_similar.sort(
-        key=lambda x: abs(get_price(x) - budget)
+            key=lambda x: abs(get_price(x) - budget)
         )
 
         # --- Step 2: remaining products (still under budget)
@@ -1000,3 +1031,108 @@ st.markdown("""
         </p>
     </div>
 """, unsafe_allow_html=True)
+
+# --- SPONSORS SECTION (ONE LINE, SMALLER SIZE) ---
+st.markdown("""
+<div style='margin-top: 2rem; text-align: center;'>
+  <h4 style='color: #1A2B4A; margin-bottom: 1rem; font-size: 1rem;'>Our Partners</h4>
+</div>
+""", unsafe_allow_html=True)
+
+# Sponsor data
+sponsor_links = [
+    "https://qdrant.tech/",
+    "https://www.edusmart.ma/",
+    "https://instadeep.com/",
+    "http://www.bna.tn/",
+    "https://yellowsys.ai/",
+    "https://aidodev.com/",
+    "https://www.leaders-digital.com/",
+    "https://www.supcom.tn/",
+    "https://gdg.community.dev/gdg-on-campus-faculty-of-sciences-of-tunis-tunis-tunisia/",
+]
+
+sponsor_names = [
+    "Qdrant",
+    "Edusmart",
+    "InstaDeep",
+    "BNA",
+    "Yellowsys",
+    "AidoDev",
+    "Leaders Digital",
+    "Sup'Com",
+    "GDG FST"
+]
+
+def _image_to_data_uri(path: str) -> str:
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+        ext = os.path.splitext(path)[1].lower().lstrip('.')
+        mime = f"image/{ext if ext else 'png'}"
+        b64 = base64.b64encode(data).decode('ascii')
+        return f"data:{mime};base64,{b64}"
+    except Exception:
+        return None
+
+# Build horizontal sponsors row
+sponsor_items = []
+for i in range(1, 10):
+    link = sponsor_links[i-1] if i-1 < len(sponsor_links) else "#"
+    img_path = os.path.join("sponsors", f"sponsor{i}.png")
+    data_uri = _image_to_data_uri(img_path)
+    if data_uri:
+        src = data_uri
+    else:
+        src = f"https://via.placeholder.com/150x60?text=Sponsor+{i}"
+    caption = sponsor_names[i-1] if i-1 < len(sponsor_names) else f"Sponsor {i}"
+    
+    item_html = f'''<a href="{link}" target="_blank" rel="noopener noreferrer" class="sponsor-item">
+        <img src="{src}" alt="{caption}" title="{caption}"/>
+    </a>'''
+    sponsor_items.append(item_html)
+
+sponsors_html = (
+'''<style>
+    .sponsors-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem 0;
+    }
+    .sponsor-item {
+        display: inline-block;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .sponsor-item img {
+        height: 50px;
+        width: auto;
+        max-width: 120px;
+        object-fit: contain;
+        border-radius: 6px;
+        display: block;
+    }
+    .sponsor-item:hover {
+        transform: translateY(-3px);
+    }
+    .sponsor-item:hover img {
+        box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    }
+    @media (max-width: 768px) {
+        .sponsor-item img {
+            height: 40px;
+            max-width: 100px;
+        }
+        .sponsors-container {
+            gap: 15px;
+        }
+    }
+</style>
+<div class="sponsors-container">
+''') + ''.join(sponsor_items) + '''</div>'''
+
+st.markdown(sponsors_html, unsafe_allow_html=True)
