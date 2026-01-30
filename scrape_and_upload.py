@@ -203,10 +203,10 @@ class TunisianetScraper:
             
             color = "Non spécifié"
             colors = {
-                'Noir': ['noir', 'black', 'negro'],
+                'Noir': ['noir', 'black', 'negro', 'Noir'],
                 'Bleu': ['blue', 'bleu', 'azul'],
                 'Blanc': ['white', 'blanc', 'blanco'],
-                'Gold': ['gold', 'doré', 'or'],
+                'Gold': ['gold', 'doré', ' or '],
                 'Rose': ['rose', 'pink'],
                 'Vert': ['vert', 'green'],
                 'Rouge': ['rouge', 'red'],
