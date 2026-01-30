@@ -7,7 +7,10 @@ import time
 import logging
 import uuid
 import json
-from config import URL, API_KEY
+import os
+
+URL = os.environ["QDRANT_URL"]
+API_KEY = os.environ["QDRANT_API_KEY"]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -314,3 +317,4 @@ if __name__ == "__main__":
     Total Uploaded: {uploaded}
     {'='*50}
     """)
+
