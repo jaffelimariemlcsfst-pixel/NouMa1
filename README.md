@@ -4,6 +4,7 @@
 °❀⋆.ೃ࿔*:･°❀⋆.ೃ࿔*:･ This is Noumafind's's readme °❀⋆.ೃ࿔*:･°❀⋆.ೃ࿔*:･
 https://noumafinds.streamlit.app/
 # this is our website's URL 
+you have to register first then log in (●'◡'●)
 
 
 
@@ -21,9 +22,15 @@ Finding the right device can be overwhelming with countless specifications.
 ##Getting Started: How can someone set it up and run it 	(¬‿¬ )?
 ## Setup Instructions
 
-1. Rename `config.example.py` to `config.py`
-2. Open `config.py` and add your Qdrant URL and API key
-3. Run the application
+if you want to run the script locally replace this :
+import io
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+URL = os.environ["QDRANT_URL"]
+API_KEY = os.environ["QDRANT_API_KEY"]
+with this :
+URL="paste your url here"
+API_KEY="paste you api_key here"
+
 
 
 1.Create the virtuelenv by the commend
@@ -56,6 +63,8 @@ note : the first thing you have to do when you open the app is to push the butto
 *If u have a specific color select it
 *If you have a specific model enter it
 *if you have a picture of the desired product upload it 
+X_X we've tried to automate the webscraping with github actions but we are still working on it X_X  
+
 
 
 
