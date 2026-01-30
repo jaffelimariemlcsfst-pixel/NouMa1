@@ -1,4 +1,7 @@
 streamlit 
 pandas
 qdrant_client
+requests
+beautifulsoup4
 sentence_transformers
+torch
