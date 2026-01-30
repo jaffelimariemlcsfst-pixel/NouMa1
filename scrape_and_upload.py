@@ -8,9 +8,10 @@ import logging
 import uuid
 import json
 import os
-
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 URL = os.environ["QDRANT_URL"]
 API_KEY = os.environ["QDRANT_API_KEY"]
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -246,7 +247,7 @@ class TunisianetScraper:
         logger.info(f"📤 Uploaded {total} products to Qdrant")
         return total
 
-    def run_multi_site(self, targets, pages_per_site=100):
+    def run_multi_site(self, targets, pages_per_site=50):
         all_sites_products = []
         
         for target in targets:
@@ -302,12 +303,13 @@ if __name__ == "__main__":
                      'https://spacenet.tn/8-imprimante-tunisie',
                      'https://spacenet.tn/74-pc-portable-tunisie',
                      'https://spacenet.tn/148-smartwatch-tunisie',
+                     'https://spacenet.tn/6-image-son'
                      ]  
         },
     ]
     
     scraper = TunisianetScraper()
-    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=100)
+    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=50)
     
     print(f"""
     {'='*50}
@@ -317,4 +319,3 @@ if __name__ == "__main__":
     Total Uploaded: {uploaded}
     {'='*50}
     """)
-
