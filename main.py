@@ -328,14 +328,7 @@ if search_vector:
                 range=models.Range(lte=float(budget))
             )
         ]
-        
-        if category_filter != "Tous":
-            filter_conditions.append(
-                models.FieldCondition(
-                    key="category",
-                    match=models.MatchValue(value=category_filter)
-                )
-            )
+
         
         if color_filter != "Toutes":
             filter_conditions.append(
@@ -370,7 +363,11 @@ if search_vector:
             # Calculate cosine similarity
             point_vec = np.array(point.vector)
             similarity = np.dot(search_vec, point_vec) / (np.linalg.norm(search_vec) * np.linalg.norm(point_vec))
-            
+            if category_filter != "Tous":
+                product_category = str(point.payload.get("category", "")).lower()
+                if category_filter.lower() not in product_category:
+                    continue
+
             # Boost score for exact/partial text matches
             boost = 0
             if query_text:
