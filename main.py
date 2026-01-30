@@ -345,17 +345,41 @@ if search_vector:
                 )
             )
         
-        # Execute search - Using the underlying gRPC/REST client
-        from qdrant_client.http.models import SearchRequest
+        # Execute search - Using scroll with filter and manual similarity scoring
+        from qdrant_client.models import ScrollRequest
         
-        # Access the underlying client to bypass FastEmbed
-        results = client._client.search(
+        # First, get all points matching the filter (up to limit)
+        scroll_result = client.scroll(
             collection_name=collection_name,
-            query_vector=search_vector,
+            scroll_filter=models.Filter(must=filter_conditions),
             limit=100,
-            query_filter=models.Filter(must=filter_conditions),
-            with_payload=True
+            with_payload=True,
+            with_vectors=True
         )
+        
+        # Calculate similarity scores manually
+        import numpy as np
+        
+        results = []
+        search_vec = np.array(search_vector)
+        
+        for point in scroll_result[0]:  # scroll returns (points, next_offset)
+            # Calculate cosine similarity
+            point_vec = np.array(point.vector)
+            similarity = np.dot(search_vec, point_vec) / (np.linalg.norm(search_vec) * np.linalg.norm(point_vec))
+            
+            # Create a result object similar to search results
+            class ScoredPoint:
+                def __init__(self, id, score, payload):
+                    self.id = id
+                    self.score = similarity
+                    self.payload = payload
+            
+            results.append(ScoredPoint(point.id, similarity, point.payload))
+        
+        # Sort by similarity score (highest first)
+        results.sort(key=lambda x: x.score, reverse=True)
+        results = results[:100]  # Keep top 100
         
         # --- Display Results ---
         if len(results) == 0:
