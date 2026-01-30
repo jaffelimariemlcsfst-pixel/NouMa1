@@ -8,8 +8,200 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import json
-URL = os.environ["QDRANT_URL"]
-API_KEY = os.environ["QDRANT_API_KEY"]
+
+# ============================================================================
+# AUTHENTICATION & SAVED SEARCHES DATABASE LAYER
+# ============================================================================
+import sqlite3
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Tuple
+
+DB_PATH = "users.db"
+
+def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
+    """Hash password using PBKDF2 with SHA256"""
+    if salt is None:
+        salt = secrets.token_hex(32)
+    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+    return pwd_hash, salt
+
+def verify_password(password: str, stored_hash: str, salt: str) -> bool:
+    """Verify password against stored hash"""
+    pwd_hash, _ = hash_password(password, salt)
+    return pwd_hash == stored_hash
+
+def init_db():
+    """Initialize database tables"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        password_salt TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        session_token TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS saved_searches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        filters JSON NOT NULL,
+        keywords TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP,
+        is_favorite INTEGER DEFAULT 0,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, name))''')
+    conn.commit()
+    conn.close()
+
+def register_user(email: str, password: str) -> Tuple[bool, str]:
+    """Register new user"""
+    if not email or not password or len(password) < 8 or '@' not in email:
+        return False, "Invalid email or password (min 8 chars)"
+    init_db()
+    try:
+        pwd_hash, salt = hash_password(password)
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute('INSERT INTO users (email, password_hash, password_salt) VALUES (?, ?, ?)',
+                    (email.lower(), pwd_hash, salt))
+        conn.commit()
+        conn.close()
+        return True, "Registration successful!"
+    except sqlite3.IntegrityError:
+        return False, "Email already registered"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+def login_user(email: str, password: str) -> Tuple[bool, str, Optional[str]]:
+    """Authenticate user and create session"""
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id, password_hash, password_salt FROM users WHERE email = ?', (email.lower(),))
+        user = c.fetchone()
+        if not user or not verify_password(password, user[1], user[2]):
+            return False, "Invalid credentials", None
+        user_id, _, _ = user
+        session_token = secrets.token_urlsafe(32)
+        expires_at = datetime.now() + timedelta(days=7)
+        c.execute('INSERT INTO sessions (user_id, session_token, expires_at) VALUES (?, ?, ?)',
+                 (user_id, session_token, expires_at))
+        c.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
+        return True, "Login successful!", session_token
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+def verify_session(session_token: str) -> Optional[Dict]:
+    """Verify session token"""
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT u.id, u.email, s.expires_at FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_token = ?',
+                 (session_token,))
+        result = c.fetchone()
+        conn.close()
+        if not result or datetime.fromisoformat(result[2]) < datetime.now():
+            return None
+        return {'user_id': result[0], 'email': result[1]}
+    except:
+        return None
+
+def logout_user(session_token: str) -> bool:
+    """Logout user"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute('DELETE FROM sessions WHERE session_token = ?', (session_token,))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+def create_saved_search(user_id: int, name: str, filters: Dict, keywords: str = None) -> Tuple[bool, str, Optional[int]]:
+    """Create saved search"""
+    if not name or len(name) > 100:
+        return False, "Invalid search name", None
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('INSERT INTO saved_searches (user_id, name, filters, keywords) VALUES (?, ?, ?, ?)',
+                 (user_id, name.strip(), json.dumps(filters), keywords))
+        conn.commit()
+        search_id = c.lastrowid
+        conn.close()
+        return True, f"Search '{name}' saved!", search_id
+    except sqlite3.IntegrityError:
+        return False, f"Search '{name}' already exists", None
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+def get_saved_searches(user_id: int):
+    """Get all saved searches for user"""
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id, name, filters, keywords, created_at, is_favorite FROM saved_searches WHERE user_id = ? ORDER BY is_favorite DESC, last_used DESC, created_at DESC',
+                 (user_id,))
+        results = c.fetchall()
+        conn.close()
+        return [{'id': r[0], 'name': r[1], 'filters': json.loads(r[2]), 'keywords': r[3], 'created_at': r[4], 'is_favorite': r[5]} for r in results]
+    except:
+        return []
+
+def delete_saved_search(user_id: int, search_id: int) -> Tuple[bool, str]:
+    """Delete saved search"""
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('DELETE FROM saved_searches WHERE id = ? AND user_id = ?', (search_id, user_id))
+        if c.rowcount == 0:
+            conn.close()
+            return False, "Search not found"
+        conn.commit()
+        conn.close()
+        return True, "Search deleted!"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+def toggle_favorite(user_id: int, search_id: int) -> bool:
+    """Toggle favorite status"""
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT is_favorite FROM saved_searches WHERE id = ? AND user_id = ?', (search_id, user_id))
+        result = c.fetchone()
+        if result:
+            new_status = 1 - result[0]
+            c.execute('UPDATE saved_searches SET is_favorite = ? WHERE id = ? AND user_id = ?', (new_status, search_id, user_id))
+            conn.commit()
+            conn.close()
+            return True
+        conn.close()
+        return False
+    except:
+        return False
+
+
+URL = "https://56d8b959-9040-46c2-8700-d39153fa983e.europe-west3-0.gcp.cloud.qdrant.io"
+API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.wtCNilC24qMbubWOk4ohh3lF3IOE4cfPX7VU4ZaAaxc"
 
 
 # --- 1. CONFIGURATION ---
@@ -37,6 +229,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# ============================================================================
+# INITIALIZE AUTHENTICATION SESSION STATE
+# ============================================================================
+if 'auth_session_token' not in st.session_state:
+    st.session_state['auth_session_token'] = None
+if 'auth_user' not in st.session_state:
+    st.session_state['auth_user'] = None
+if 'show_saved_searches_page' not in st.session_state:
+    st.session_state['show_saved_searches_page'] = False
+if 'loaded_search' not in st.session_state:
+    st.session_state['loaded_search'] = None
+
 if 'compare_list' not in st.session_state:
     st.session_state.compare_list = {}
 if 'page_offset' not in st.session_state:
@@ -45,7 +249,142 @@ if 'total_searches' not in st.session_state:
     st.session_state.total_searches = 0
 
 # --- 2. UTILITY FUNCTIONS ---
+# ============================================================================
+# AUTHENTICATION UI FUNCTIONS
+# ============================================================================
+def get_current_user():
+    """Get authenticated user from session"""
+    if st.session_state.get('auth_session_token'):
+        user = verify_session(st.session_state.get('auth_session_token'))
+        if user:
+            st.session_state.auth_user = user
+            return user
+        else:
+            st.session_state['auth_session_token'] = None
+            st.session_state.auth_user = None
+    return None
 
+def render_auth_sidebar():
+    """Render authentication UI in sidebar"""
+    user = get_current_user()
+    
+    with st.sidebar:
+        st.markdown("---")
+        if user:
+            st.success(f"✅ Logged in: {user['email']}")
+            if st.button("🚪 Logout", use_container_width=True, key="logout_btn"):
+                logout_user(st.session_state.get('auth_session_token'))
+                st.session_state['auth_session_token'] = None
+                st.session_state.auth_user = None
+                st.session_state.show_saved_searches_page = False
+                st.rerun()
+            
+            if st.button("📋 My Saved Searches", use_container_width=True, key="saved_searches_btn"):
+                st.session_state.show_saved_searches_page = not st.session_state.show_saved_searches_page
+                st.rerun()
+        else:
+            st.info("ℹ️ Not logged in")
+
+def render_login_page():
+    """Render login/register page"""
+    st.markdown("## 🔐 Authentication")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Login")
+        login_email = st.text_input("Email", key="login_email")
+        login_password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Login", key="login_btn", use_container_width=True):
+            if login_email and login_password:
+                success, message, session_token = login_user(login_email, login_password)
+                if success:
+                    st.session_state['auth_session_token'] = session_token
+                    st.session_state['auth_user'] = verify_session(session_token)
+                    st.success(message)
+                    st.rerun()
+                else:
+                    st.error(message)
+            else:
+                st.warning("Enter email and password")
+    
+    with col2:
+        st.markdown("### Register")
+        reg_email = st.text_input("Email", key="reg_email")
+        reg_password = st.text_input("Password", type="password", key="reg_password")
+        reg_confirm = st.text_input("Confirm Password", type="password", key="reg_confirm")
+        if st.button("Register", key="register_btn", use_container_width=True):
+            if not reg_email or not reg_password:
+                st.warning("Fill all fields")
+            elif reg_password != reg_confirm:
+                st.error("Passwords don't match")
+            else:
+                success, message = register_user(reg_email, reg_password)
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+
+def render_saved_searches_page():
+    """Render saved searches management page"""
+    user = get_current_user()
+    if not user:
+        st.warning("Please log in")
+        return
+    
+    st.markdown("## 📋 My Saved Searches")
+    saved_searches = get_saved_searches(user['user_id'])
+    
+    if not saved_searches:
+        st.info("No saved searches yet!")
+        return
+    
+    for search in saved_searches:
+        with st.expander(f"{'⭐' if search['is_favorite'] else '🔍'} {search['name']}", expanded=False):
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+            
+            with col1:
+                st.markdown(f"**Created:** {search['created_at']}")
+                if search['keywords']:
+                    st.markdown(f"**Keywords:** {search['keywords']}")
+                st.json(search['filters'])
+            
+            with col2:
+                if st.button("🔄 Use", key=f"use_{search['id']}", use_container_width=True):
+                    st.session_state.loaded_search = search
+                    st.session_state.show_saved_searches_page = False
+                    st.rerun()
+            
+            with col3:
+                if st.button("⭐ Fav" if not search['is_favorite'] else "✨ Fav", key=f"fav_{search['id']}", use_container_width=True):
+                    toggle_favorite(user['user_id'], search['id'])
+                    st.rerun()
+            
+            with col4:
+                if st.button("🗑️ Del", key=f"del_{search['id']}", use_container_width=True):
+                    success, msg = delete_saved_search(user['user_id'], search['id'])
+                    if success:
+                        st.success("Deleted!")
+                        st.rerun()
+
+def render_save_search_widget(filters: dict, keywords: str = None):
+    """Render save search widget"""
+    user = get_current_user()
+    if not user:
+        return
+    
+    with st.expander("💾 Save This Search"):
+        search_name = st.text_input("Search name", placeholder="e.g., Budget Android Phones", key=f"save_search_name_{id(filters)}")
+        if st.button("Save", key=f"save_btn_{id(filters)}", use_container_width=True):
+            if search_name:
+                success, message, _ = create_saved_search(user['user_id'], search_name, filters, keywords)
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+            else:
+                st.warning("Enter a name")
+
+# --- 2. UTILITY FUNCTIONS ---
 def scroll_to_top():
     """Scroll to top smoothly using JavaScript"""
     components.html(
@@ -164,7 +503,20 @@ def load_resources():
     client = QdrantClient(url=URL, api_key=API_KEY, timeout=60)
     model = SentenceTransformer('clip-ViT-B-32')
     return client, model
+# --- 4.5 AUTHENTICATION ---
+render_auth_sidebar()
 
+# Handle page navigation
+if st.session_state.show_saved_searches_page:
+    render_saved_searches_page()
+    st.stop()
+
+# Check if user is authenticated
+if not get_current_user():
+    render_login_page()
+    st.stop()
+
+# --- 5. LOAD RESOURCES ---
 client, model = load_resources()
 collection_name = "products2"
 
@@ -305,6 +657,15 @@ search_performed = False
 if uploaded_file is not None:
     from PIL import Image
     img = Image.open(uploaded_file)
+    # Load saved search if user clicked "Use" on a saved search
+    if st.session_state.loaded_search:
+        loaded = st.session_state.loaded_search
+        query = loaded.get('keywords', '')
+        budget = loaded['filters'].get('budget', budget)
+        category_filter = loaded['filters'].get('category', category_filter)
+        color_filter = loaded['filters'].get('color', color_filter)
+        st.info(f"✓ Using saved search: **{loaded['name']}**")
+        st.session_state.loaded_search = None
     
     img_col1, img_col2, img_col3 = st.columns([1, 2, 1])
     with img_col2:
@@ -328,7 +689,14 @@ if search_vector:
                 range=models.Range(lte=float(budget))
             )
         ]
-
+        
+        if category_filter != "Tous":
+            filter_conditions.append(
+                models.FieldCondition(
+                    key="category",
+                    match=models.MatchValue(value=category_filter)
+                )
+            )
         
         if color_filter != "Toutes":
             filter_conditions.append(
@@ -363,11 +731,7 @@ if search_vector:
             # Calculate cosine similarity
             point_vec = np.array(point.vector)
             similarity = np.dot(search_vec, point_vec) / (np.linalg.norm(search_vec) * np.linalg.norm(point_vec))
-            if category_filter != "Tous":
-                product_category = str(point.payload.get("category", "")).lower()
-                if category_filter.lower() not in product_category:
-                    continue
-
+            
             # Boost score for exact/partial text matches
             boost = 0
             if query_text:
@@ -438,7 +802,16 @@ if search_vector:
                     <h2 style='color: #E91E63; margin: 0;'>🎯 Found {len(results)} Products Matching Your Search!</h2>
                 </div>
             """, unsafe_allow_html=True)
-            
+
+            # Save search widget
+            current_filters = {
+                'query': query,
+                'budget': budget,
+                'category': category_filter,
+                'color': color_filter
+            }
+            render_save_search_widget(current_filters, query)
+
             # Setup Pagination
             items_per_page = 9
             total_pages = (len(results) // items_per_page) + (1 if len(results) % items_per_page > 0 else 0)
