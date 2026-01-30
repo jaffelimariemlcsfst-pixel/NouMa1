@@ -8,6 +8,11 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import json
+import os
+
+URL = os.environ["QDRANT_URL"]
+API_KEY = os.environ["QDRANT_API_KEY"]
+
 
 
 
@@ -543,3 +548,4 @@ st.markdown("""
     </div>
 
 """, unsafe_allow_html=True) 
+
