@@ -345,16 +345,13 @@ if search_vector:
                 )
             )
         
-        # Execute search - FIXED: Using search_points instead of search
-        search_result = client.search_points(
+        # Execute search - FIXED for your Qdrant version
+        results = client.query(
             collection_name=collection_name,
             query_vector=search_vector, 
             limit=100,
             query_filter=models.Filter(must=filter_conditions)
         )
-        
-        # Extract the points from the result
-        results = search_result.points if hasattr(search_result, 'points') else search_result
         
         # --- Display Results ---
         if len(results) == 0:
