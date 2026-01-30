@@ -5,6 +5,8 @@
 https://noumafinds.streamlit.app/
 # this is our website's URL 
 you have to register first then log in (●'◡'●)
+and censerning the video please download it for better resolution 
+and thank you so much for this opportunity ^_^
 
 
 
