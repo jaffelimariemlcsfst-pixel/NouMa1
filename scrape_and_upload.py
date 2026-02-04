@@ -9,8 +9,8 @@ import uuid
 import json
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-URL = os.environ["QDRANT_URL"]
-API_KEY = os.environ["QDRANT_API_KEY"]
+URL = "https://56d8b959-9040-46c2-8700-d39153fa983e.europe-west3-0.gcp.cloud.qdrant.io"
+API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.wtCNilC24qMbubWOk4ohh3lF3IOE4cfPX7VU4ZaAaxc"
 
 
 logging.basicConfig(level=logging.INFO)
@@ -247,7 +247,7 @@ class TunisianetScraper:
         logger.info(f"📤 Uploaded {total} products to Qdrant")
         return total
 
-    def run_multi_site(self, targets, pages_per_site=25):
+    def run_multi_site(self, targets, pages_per_site=1):
         all_sites_products = []
         
         for target in targets:
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     ]
     
     scraper = TunisianetScraper()
-    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=25)
+    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=1)
     
     print(f"""
     {'='*50}
