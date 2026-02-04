@@ -283,32 +283,45 @@ class TunisianetScraper:
         return len(all_sites_products), total_uploaded
 
 if __name__ == "__main__":
-    targets = [
-        {
-            "brand": "Tunisianet",
-            "urls": [
-                'https://www.tunisianet.com.tn/596-smartphone-tunisie',
-                
-                'https://www.tunisianet.com.tn/462-telephone-fixe'
-            ]
-        },
-        {
-            "brand": "spacenet",
-            "urls": ['https://spacenet.tn/193-lave-vaisselle-tunisie',
-                     'https://spacenet.tn/218-accessoires-gamer-tunisie',
-                     'https://spacenet.tn/6-image-son'
-                     ]  
-        },
-    ]
-    
-    scraper = TunisianetScraper()
-    scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=1)
-    
-    print(f"""
-    {'='*50}
-    🎉 Multi-Site Scraping Complete!
-    {'='*50}
-    Total Scraped:  {scraped}
-    Total Uploaded: {uploaded}
-    {'='*50}
-    """)
+    try:
+        targets = [
+            {
+                "brand": "Tunisianet",
+                "urls": [
+                    'https://www.tunisianet.com.tn/596-smartphone-tunisie',
+                    'https://www.tunisianet.com.tn/376-telephonie-tablette',
+                ]
+            },
+            {
+                "brand": "spacenet",
+                "urls": [
+                    'https://spacenet.tn/193-lave-vaisselle-tunisie',
+                    'https://spacenet.tn/74-pc-portable-tunisie',
+                ]  
+            },
+        ]
+        
+        scraper = TunisianetScraper()
+        scraped, uploaded = scraper.run_multi_site(targets, pages_per_site=2)  # Reduced pages for faster testing
+        
+        print(f"""
+        {'='*50}
+        🎉 Multi-Site Scraping Complete!
+        {'='*50}
+        Total Scraped:  {scraped}
+        Total Uploaded: {uploaded}
+        {'='*50}
+        """)
+        
+        # Exit with proper code
+        if scraped > 0:
+            exit(0)  # Success
+        else:
+            logger.error("No products were scraped!")
+            exit(1)  # Failure
+            
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
