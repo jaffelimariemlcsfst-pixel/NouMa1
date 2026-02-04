@@ -288,9 +288,7 @@ if __name__ == "__main__":
             "brand": "Tunisianet",
             "urls": [
                 'https://www.tunisianet.com.tn/596-smartphone-tunisie',
-                'https://www.tunisianet.com.tn/376-telephonie-tablette',
-                'https://www.tunisianet.com.tn/301-pc-portable-tunisie',
-                'https://www.tunisianet.com.tn/650-smartwatch',
+                
                 'https://www.tunisianet.com.tn/462-telephone-fixe'
             ]
         },
@@ -298,11 +296,6 @@ if __name__ == "__main__":
             "brand": "spacenet",
             "urls": ['https://spacenet.tn/193-lave-vaisselle-tunisie',
                      'https://spacenet.tn/218-accessoires-gamer-tunisie',
-                     'https://spacenet.tn/221-clavier-gamer',
-                     'https://spacenet.tn/180-electromenager-cuisine',
-                     'https://spacenet.tn/8-imprimante-tunisie',
-                     'https://spacenet.tn/74-pc-portable-tunisie',
-                     'https://spacenet.tn/148-smartwatch-tunisie',
                      'https://spacenet.tn/6-image-son'
                      ]  
         },
